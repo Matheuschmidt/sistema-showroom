@@ -1,3 +1,13 @@
+package venda;
+
+import dominio.cliente.Cliente;
+import dominio.produto.Alianca;
+import dominio.produto.Modelo;
+import dominio.usuario.Loja;
+
+import java.util.ArrayList;
+import java.util.List;
+
 public class PedidoVenda {
     private Cliente cliente;
     private Loja loja;
@@ -10,7 +20,9 @@ public class PedidoVenda {
     private double valorBruto;
     private double desconto;
     private double valorFinal;
+    private String pe;
 
+    private List<Acrescimo> acrescimos = new ArrayList<>();
     public PedidoVenda(Cliente cliente, Loja loja, String vendedor, String dataVenda, String dataEntrega, CotacaoOuro cotacaoOuro) {
         this.cliente = cliente;
         this.loja = loja;
@@ -64,6 +76,13 @@ public class PedidoVenda {
         return valorFinal;
     }
 
+    public String getPe() {
+        return pe;
+    }
+
+    public void definirPe(String pe){
+        this.pe = pe;
+    }
 
     public void adicionarAlianca(Modelo modelo, String tipoAro, double aro, String gravacao, int teorOuro){
         Alianca alianca = new Alianca(modelo, tipoAro, aro, gravacao, teorOuro);
@@ -76,21 +95,50 @@ public class PedidoVenda {
         }
     }
 
+    public void adicionarAcrescimo(Acrescimo acrescimo){
+        acrescimos.add(acrescimo);
+    }
+
     public double calcularPesoTotal(){
-        double pesoTotal = alianca1.calcularPeso() + alianca2.calcularPeso();
+        double pesoTotal = 0;
+        if (alianca1 != null){
+            pesoTotal += alianca1.calcularPeso();
+        }
+        if (alianca2 != null){
+            pesoTotal += alianca2.calcularPeso();
+        }
         return pesoTotal;
     }
 
-    public double calcularValorBruto(){
-        double valor = 0;
+    public void calcularValorBruto(){
+        valorBruto = 0;
 
         if (alianca1 != null){
-            valor += alianca1.getModelo().calcularValorBase(alianca1.getTeorOuro(), cotacaoOuro);
+            valorBruto += alianca1.getModelo().calcularValorBase(alianca1.getTeorOuro(), cotacaoOuro);
         }
         if (alianca2 != null){
-            valor += alianca2.getModelo().calcularValorBase(alianca2.getTeorOuro(), cotacaoOuro);
+            valorBruto += alianca2.getModelo().calcularValorBase(alianca2.getTeorOuro(), cotacaoOuro);
         }
-        return valor;
+    }
+
+    public double calcularAcrescimos(){
+        double totalAcrescimos = 0;
+        for (Acrescimo acrescimo : acrescimos){
+            totalAcrescimos += valorBruto * (acrescimo.getPercentual() / 100);
+            totalAcrescimos += acrescimo.getValorFixo();
+        }
+        return totalAcrescimos;
+    }
+
+    public void aplicarDesconto(double percentual){
+        desconto = percentual;
+    }
+
+    public void calcularValorFinal(){
+        double subtotal = valorBruto + calcularAcrescimos();
+        double valorDesconto = subtotal * (desconto / 100);
+
+        valorFinal = subtotal - valorDesconto;
     }
 
     public void exibirVenda(){

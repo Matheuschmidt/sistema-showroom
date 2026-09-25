@@ -1,3 +1,5 @@
+package venda;
+
 public class CotacaoOuro {
     private double cotacao10k;
     private double cotacao18k;

@@ -1,3 +1,7 @@
+package dominio.produto;
+
+import venda.CotacaoOuro;
+
 public class Modelo {
     private String referencia;
     private double largura;

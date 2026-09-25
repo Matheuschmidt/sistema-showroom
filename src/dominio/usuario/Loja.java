@@ -1,4 +1,6 @@
-public class Loja extends Perfil{
+package dominio.usuario;
+
+public class Loja extends Perfil {
     private String nome;
 
     public Loja(String nome, String login, String senha) {

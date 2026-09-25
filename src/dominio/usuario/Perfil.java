@@ -1,3 +1,5 @@
+package dominio.usuario;
+
 public class Perfil {
     private String login;
     private String senha;

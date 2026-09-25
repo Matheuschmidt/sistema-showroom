@@ -1,4 +1,6 @@
-public class Admin extends Perfil{
+package dominio.usuario;
+
+public class Admin extends Perfil {
     public Admin(String login, String senha) {
         super(login, senha);
     }

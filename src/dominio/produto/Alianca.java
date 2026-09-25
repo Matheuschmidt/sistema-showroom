@@ -1,3 +1,7 @@
+package dominio.produto;
+
+import calculo.IndiceAro;
+
 public class Alianca {
     private Modelo modelo;
     private String tipoAro;
