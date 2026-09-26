@@ -8,15 +8,17 @@ public class Alianca {
     private double aro;
     private String gravacao;
     private int teorOuro;
+    private double percentualAlteracaoPeso;
 
     private static final IndiceAro INDICE_ARO = new IndiceAro();
 
-    public Alianca(Modelo modelo, String tipoAro, double aro, String gravacao, int teorOuro) {
+    public Alianca(Modelo modelo, String tipoAro, double aro, String gravacao, int teorOuro, double percentualAlteracaoPeso) {
         this.modelo = modelo;
         this.tipoAro = tipoAro;
         this.aro = aro;
         this.gravacao = gravacao;
         this.teorOuro = teorOuro;
+        this.percentualAlteracaoPeso = percentualAlteracaoPeso;
     }
 
     public Modelo getModelo() {
@@ -39,6 +41,10 @@ public class Alianca {
         return teorOuro;
     }
 
+    public double getPercentualAlteracaoPeso() {
+        return percentualAlteracaoPeso;
+    }
+
     public double calcularPeso(){
         double pesoBase;
         int aroInteiro = (int) Math.ceil(aro);
@@ -52,6 +58,7 @@ public class Alianca {
             throw new IllegalArgumentException("Teor de ouro inválido.");
         }
         peso = pesoBase * INDICE_ARO.buscarIndice(aroInteiro);
+        peso = peso * (1 + percentualAlteracaoPeso / 100);
         pesoArredondado = Math.round(peso / 0.05) * 0.05;
         return pesoArredondado;
     }

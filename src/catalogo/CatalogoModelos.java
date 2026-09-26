@@ -1,5 +1,7 @@
 package catalogo;
 
+import dominio.produto.Modelo;
+
 import java.util.HashMap;
 import java.util.Map;
 
