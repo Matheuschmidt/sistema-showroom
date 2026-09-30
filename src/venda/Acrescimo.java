@@ -5,6 +5,9 @@ public class Acrescimo {
     private double valorFixo;
 
     public Acrescimo(double percentual, double valorFixo) {
+        if (percentual < 0 || valorFixo < 0) {
+            throw new IllegalArgumentException("Acréscimos não podem ser negativos.");
+        }
         this.percentual = percentual;
         this.valorFixo = valorFixo;
     }

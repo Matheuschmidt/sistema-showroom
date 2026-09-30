@@ -1,31 +1,44 @@
 package dominio.produto;
 
-import calculo.IndiceAro;
+import venda.CotacaoOuro;
 
+import java.util.Objects;
+
+// Uma unidade (aliança) da venda. Cada unidade tem suas próprias características.
+// A classe é imutável: para editar uma unidade, o pedido troca a unidade inteira.
 public class Alianca {
-    private Modelo modelo;
-    private String tipoAro;
-    private double aro;
-    private String gravacao;
-    private int teorOuro;
-    private double percentualAlteracaoPeso;
+    private final Modelo modelo;
+    private final TipoAro tipoAro;
+    private final double aro;
+    private final String gravacao;
+    private final TeorOuro teorOuro;
+    private final Double larguraPE;
+    private final boolean maisAnatomica;
 
-    private static final IndiceAro INDICE_ARO = new IndiceAro();
+    public Alianca(Modelo modelo, TipoAro tipoAro, double aro, String gravacao, TeorOuro teorOuro,
+                   Double larguraPE, boolean maisAnatomica) {
+        this.modelo = Objects.requireNonNull(modelo, "O modelo é obrigatório.");
+        this.tipoAro = Objects.requireNonNull(tipoAro, "O tipo de aro é obrigatório.");
+        this.teorOuro = Objects.requireNonNull(teorOuro, "O teor do ouro é obrigatório.");
 
-    public Alianca(Modelo modelo, String tipoAro, double aro, String gravacao, int teorOuro, double percentualAlteracaoPeso) {
-        this.modelo = modelo;
-        this.tipoAro = tipoAro;
+        if (aro <= 0) {
+            throw new IllegalArgumentException("O aro deve ser maior que zero.");
+        }
+        if (larguraPE != null && larguraPE <= 0) {
+            throw new IllegalArgumentException("A largura do P.E. deve ser maior que zero.");
+        }
+
         this.aro = aro;
-        this.gravacao = gravacao;
-        this.teorOuro = teorOuro;
-        this.percentualAlteracaoPeso = percentualAlteracaoPeso;
+        this.gravacao = gravacao == null ? "" : gravacao;
+        this.larguraPE = larguraPE;
+        this.maisAnatomica = maisAnatomica;
     }
 
     public Modelo getModelo() {
         return modelo;
     }
 
-    public String getTipoAro() {
+    public TipoAro getTipoAro() {
         return tipoAro;
     }
 
@@ -37,35 +50,30 @@ public class Alianca {
         return gravacao;
     }
 
-    public int getTeorOuro() {
+    public TeorOuro getTeorOuro() {
         return teorOuro;
     }
 
-    public double getPercentualAlteracaoPeso() {
-        return percentualAlteracaoPeso;
+    // Largura desejada do P.E., ou null quando não há P.E.
+    public Double getLarguraPE() {
+        return larguraPE;
     }
 
-    public double calcularPeso(){
-        double pesoBase;
-        int aroInteiro = (int) Math.ceil(aro);
-        double peso;
-        double pesoArredondado;
-        if (teorOuro == 10){
-            pesoBase = modelo.getPesoBase10k();
-        } else if (teorOuro == 18){
-            pesoBase = modelo.getPesoBase18k();
-        }else {
-            throw new IllegalArgumentException("Teor de ouro inválido.");
-        }
-        peso = pesoBase * INDICE_ARO.buscarIndice(aroInteiro);
-        peso = peso * (1 + percentualAlteracaoPeso / 100);
-        pesoArredondado = Math.round(peso / 0.05) * 0.05;
-        return pesoArredondado;
+    public boolean possuiPE() {
+        return larguraPE != null;
     }
 
-    public void exibirAlianca(){
-        System.out.println(modelo.getReferencia() + " " + getTeorOuro() + "K");
-        System.out.println("ARO " + getTipoAro() + ": " + getAro() + " - " +  getGravacao());
-        System.out.printf("Peso: %.2f%n", calcularPeso());
+    public boolean isMaisAnatomica() {
+        return maisAnatomica;
+    }
+
+    // Peso comercial: peso base do modelo para o teor da unidade (REGRAS_NEGOCIO.md, seção 4).
+    // Não sofre influência de aro, P.E. ou alterações de produção.
+    public double calcularPesoComercial() {
+        return modelo.getPesoBase(teorOuro);
+    }
+
+    public double calcularValorBase(CotacaoOuro cotacaoOuro) {
+        return modelo.calcularValorBase(teorOuro, cotacaoOuro);
     }
 }

@@ -1,32 +1,47 @@
 package venda;
 
+import calculo.CalculadoraPesoProducao;
 import dominio.cliente.Cliente;
 import dominio.produto.Alianca;
-import dominio.produto.Modelo;
 import dominio.usuario.Loja;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class PedidoVenda {
-    private int id;
+    private static final int MAXIMO_UNIDADES = 2;
+
+    private final int id;
+    private final Loja loja;
     private Cliente cliente;
-    private Loja loja;
-    private Alianca alianca1;
-    private Alianca alianca2;
+    private final List<Alianca> unidades = new ArrayList<>();
     private String vendedor;
     private String dataVenda;
     private String dataEntrega;
-    private CotacaoOuro cotacaoOuro;
-    private double valorBruto;
-    private double desconto;
-    private double valorFinal;
-    private String pe;
 
-    private List<Acrescimo> acrescimos = new ArrayList<>();
-    public PedidoVenda(int id, Loja loja, String vendedor, String dataVenda, String dataEntrega) {
+    // Cotação congelada no momento da venda (REGRAS_NEGOCIO.md, seção 7.2).
+    // CotacaoOuro é imutável, então uma nova cotação do ADMIN não altera este pedido.
+    private final CotacaoOuro cotacaoOuro;
+
+    // Alteração geral de peso da venda. Afeta somente o peso de PRODUÇÃO.
+    // Não é o mesmo que "mais anatômica".
+    private double percentualAlteracaoPeso;
+
+    private final List<Acrescimo> acrescimos = new ArrayList<>();
+    private double desconto;
+
+    private StatusPedido status = StatusPedido.PEDIDO_CRIADO;
+    private boolean lancado;
+    private boolean editado;
+    private Double pesoFinalProduzido;
+
+    public PedidoVenda(int id, Loja loja, Cliente cliente, String vendedor, String dataVenda,
+                       String dataEntrega, CotacaoOuro cotacaoOuro) {
         this.id = id;
-        this.loja = loja;
+        this.loja = Objects.requireNonNull(loja, "A loja é obrigatória.");
+        this.cotacaoOuro = Objects.requireNonNull(cotacaoOuro, "A cotação do ouro é obrigatória.");
+        this.cliente = validarCliente(cliente);
         this.vendedor = vendedor;
         this.dataVenda = dataVenda;
         this.dataEntrega = dataEntrega;
@@ -44,12 +59,8 @@ public class PedidoVenda {
         return loja;
     }
 
-    public Alianca getAlianca1() {
-        return alianca1;
-    }
-
-    public Alianca getAlianca2() {
-        return alianca2;
+    public List<Alianca> getUnidades() {
+        return List.copyOf(unidades);
     }
 
     public String getVendedor() {
@@ -68,220 +79,259 @@ public class PedidoVenda {
         return cotacaoOuro;
     }
 
-    public double getValorBruto() {
-        return valorBruto;
+    public double getPercentualAlteracaoPeso() {
+        return percentualAlteracaoPeso;
+    }
+
+    public List<Acrescimo> getAcrescimos() {
+        return List.copyOf(acrescimos);
     }
 
     public double getDesconto() {
         return desconto;
     }
 
-    public double getValorFinal() {
-        return valorFinal;
+    public StatusPedido getStatus() {
+        return status;
     }
 
-    public String getPe() {
-        return pe;
+    public boolean isEditado() {
+        return editado;
     }
 
-    public void definirPe(String pe){
-        this.pe = pe;
+    public Double getPesoFinalProduzido() {
+        return pesoFinalProduzido;
     }
 
-    public void definirCliente(Cliente cliente){
-        this.cliente = cliente;
+    public boolean pertenceA(Loja loja) {
+        return this.loja == loja;
     }
 
-    public void definirCotacaoOuro(CotacaoOuro cotacaoOuro){
-        this.cotacaoOuro = cotacaoOuro;
+    // ==================== MONTAGEM E EDIÇÃO ====================
+
+    public void definirCliente(Cliente cliente) {
+        verificarEditavel();
+        this.cliente = validarCliente(cliente);
+        registrarEdicao();
     }
-    public void adicionarAlianca(Modelo modelo, String tipoAro, double aro, String gravacao, int teorOuro, double percentualAlteracaoPeso){
-        Alianca alianca = new Alianca(modelo, tipoAro, aro, gravacao, teorOuro, percentualAlteracaoPeso);
-        if (alianca1 == null){
-            alianca1 = alianca;
-        }else if (alianca2 == null){
-            alianca2 = alianca;
-        }else {
+
+    public void adicionarAlianca(Alianca alianca) {
+        verificarEditavel();
+        Objects.requireNonNull(alianca, "A aliança é obrigatória.");
+        if (unidades.size() >= MAXIMO_UNIDADES) {
             throw new IllegalArgumentException("Já tem um par de alianças no pedido de venda.");
+        }
+        unidades.add(alianca);
+        registrarEdicao();
+    }
+
+    public void editarUnidade(int numeroUnidade, Alianca novaAlianca) {
+        verificarEditavel();
+        Objects.requireNonNull(novaAlianca, "A aliança é obrigatória.");
+        if (numeroUnidade < 1 || numeroUnidade > unidades.size()) {
+            throw new IllegalArgumentException("Unidade inexistente no pedido: " + numeroUnidade);
+        }
+        unidades.set(numeroUnidade - 1, novaAlianca);
+        registrarEdicao();
+    }
+
+    public void editarDadosVenda(String vendedor, String dataVenda, String dataEntrega) {
+        verificarEditavel();
+        boolean mudou = !Objects.equals(this.vendedor, vendedor)
+                || !Objects.equals(this.dataVenda, dataVenda)
+                || !Objects.equals(this.dataEntrega, dataEntrega);
+        this.vendedor = vendedor;
+        this.dataVenda = dataVenda;
+        this.dataEntrega = dataEntrega;
+        if (mudou) {
+            registrarEdicao();
+        }
+    }
+
+    public void definirPercentualAlteracaoPeso(double percentual) {
+        verificarEditavel();
+        if (percentual <= -100) {
+            throw new IllegalArgumentException("A alteração de peso deve ser maior que -100%.");
+        }
+        if (percentual != this.percentualAlteracaoPeso) {
+            this.percentualAlteracaoPeso = percentual;
+            registrarEdicao();
         }
     }
 
     public void adicionarAcrescimo(Acrescimo acrescimo){
-        acrescimos.add(acrescimo);
+        verificarEditavel();
+        acrescimos.add(Objects.requireNonNull(acrescimo, "O acréscimo é obrigatório."));
+        registrarEdicao();
     }
 
-    public double calcularPesoTotal(){
-        double pesoTotal = 0;
-        if (alianca1 != null){
-            pesoTotal += alianca1.calcularPeso();
+    public void removerAcrescimos() {
+        verificarEditavel();
+        if (!acrescimos.isEmpty()) {
+            acrescimos.clear();
+            registrarEdicao();
         }
-        if (alianca2 != null){
-            pesoTotal += alianca2.calcularPeso();
+    }
+
+    public void aplicarDesconto(double percentual){
+        verificarEditavel();
+        if (percentual < 0 || percentual > 100) {
+            throw new IllegalArgumentException("O desconto deve estar entre 0% e 100%.");
+        }
+        if (percentual != this.desconto) {
+            this.desconto = percentual;
+            registrarEdicao();
+        }
+    }
+
+    // Chamado pelo sistema quando o pedido é registrado. A partir daqui,
+    // qualquer alteração marca o pedido como *Editado* para a fábrica.
+    public void confirmarLancamento() {
+        if (lancado) {
+            throw new IllegalStateException("O pedido " + id + " já foi lançado.");
+        }
+        if (unidades.isEmpty()) {
+            throw new IllegalStateException("O pedido precisa ter pelo menos uma unidade.");
+        }
+        lancado = true;
+    }
+
+    // Editável enquanto não estiver FINALIZADO (nem ENTREGUE ou CANCELADO).
+    public boolean podeSerEditado() {
+        return status == StatusPedido.PEDIDO_CRIADO || status == StatusPedido.OK;
+    }
+
+    // ==================== PESO COMERCIAL ====================
+
+    public double calcularPesoComercial() {
+        double pesoComercial = 0;
+        for (Alianca unidade : unidades) {
+            pesoComercial += unidade.calcularPesoComercial();
+        }
+        return pesoComercial;
+    }
+
+    // ==================== PESO DE PRODUÇÃO ====================
+
+    public double calcularPesoProducao(Alianca unidade) {
+        return CalculadoraPesoProducao.calcularPesoUnidade(unidade, percentualAlteracaoPeso);
+    }
+
+    // Cada unidade já vem arredondada individualmente; aqui só somamos.
+    public double calcularPesoProducaoTotal() {
+        double pesoTotal = 0;
+        for (Alianca unidade : unidades) {
+            pesoTotal += calcularPesoProducao(unidade);
         }
         return pesoTotal;
     }
 
-    public void calcularValorBruto(){
-        valorBruto = 0;
+    // ==================== VALOR DA VENDA ====================
+    // Ordem (REGRAS_NEGOCIO.md, seção 7.3):
+    // valor base → acréscimo % → acréscimo em R$ → desconto % → valor final
 
-        if (alianca1 != null){
-            valorBruto += alianca1.getModelo().calcularValorBase(alianca1.getTeorOuro(), cotacaoOuro);
+    // Soma de (peso comercial da unidade × cotação congelada do teor da unidade).
+    public double calcularValorBase() {
+        double valorBase = 0;
+        for (Alianca unidade : unidades) {
+            valorBase += unidade.calcularValorBase(cotacaoOuro);
         }
-        if (alianca2 != null){
-            valorBruto += alianca2.getModelo().calcularValorBase(alianca2.getTeorOuro(), cotacaoOuro);
+        return valorBase;
+    }
+
+    public double calcularAcrescimoPercentual() {
+        double valorBase = calcularValorBase();
+        double total = 0;
+        for (Acrescimo acrescimo : acrescimos) {
+            total += valorBase * (acrescimo.getPercentual() / 100);
         }
+        return total;
+    }
+
+    public double calcularAcrescimoFixo() {
+        double total = 0;
+        for (Acrescimo acrescimo : acrescimos) {
+            total += acrescimo.getValorFixo();
+        }
+        return total;
     }
 
     public double calcularAcrescimos(){
-        double totalAcrescimos = 0;
-        for (Acrescimo acrescimo : acrescimos){
-            totalAcrescimos += valorBruto * (acrescimo.getPercentual() / 100);
-            totalAcrescimos += acrescimo.getValorFixo();
-        }
-        return totalAcrescimos;
+        return calcularAcrescimoPercentual() + calcularAcrescimoFixo();
     }
 
-    public void aplicarDesconto(double percentual){
-        desconto = percentual;
-    }
-
-    public void calcularValorFinal(){
-        double subtotal = valorBruto + calcularAcrescimos();
+    public double calcularValorFinal(){
+        double subtotal = calcularValorBase() + calcularAcrescimos();
         double valorDesconto = subtotal * (desconto / 100);
-
-        valorFinal = subtotal - valorDesconto;
+        return subtotal - valorDesconto;
     }
 
-    public void exibirVenda() {
-        System.out.println("========== VENDA ==========");
-        System.out.println("Pedido Nº: " + id);
-        System.out.println("Cliente: " + cliente.getNome());
-        System.out.println("CPF: " + cliente.getCpf());
-        System.out.println("Loja: " + loja.getNome());
-        System.out.println("Vendedor: " + vendedor);
-        System.out.println("Data da venda: " + dataVenda);
-        System.out.println("Data de entrega: " + dataEntrega);
+    // ==================== STATUS ====================
 
-        System.out.println("\n===========================");
-
-        // Apenas uma unidade
-        if (alianca2 == null) {
-
-            System.out.println("Uma unidade de aliança "
-                    + alianca1.getModelo().getReferencia()
-                    + " em " + alianca1.getTeorOuro() + "K");
-
-            if (pe != null && !pe.isBlank()) {
-                System.out.println("PE: " + pe);
-            }
-
-            System.out.println("\nAro " + alianca1.getTipoAro()
-                    + ": " + alianca1.getAro());
-
-            System.out.println("\nGravação: " + alianca1.getGravacao());
-
-            double valorAlianca = alianca1.getModelo()
-                    .calcularValorBase(alianca1.getTeorOuro(), cotacaoOuro);
-
-            System.out.printf("\nValor: R$ %.2f%n", valorAlianca);
-
-        } else {
-
-            boolean mesmoModelo = alianca1.getModelo().getReferencia()
-                    .equals(alianca2.getModelo().getReferencia());
-
-            boolean mesmoTeor = alianca1.getTeorOuro()
-                    == alianca2.getTeorOuro();
-
-            // Par do mesmo modelo e mesmo teor
-            if (mesmoModelo && mesmoTeor) {
-
-                double valorPar = alianca1.getModelo()
-                        .calcularValorBase(
-                                alianca1.getTeorOuro(),
-                                cotacaoOuro
-                        ) * 2;
-
-                System.out.println("Par de alianças "
-                        + alianca1.getModelo().getReferencia()
-                        + " em " + alianca1.getTeorOuro() + "K");
-
-                if (pe != null && !pe.isBlank()) {
-                    System.out.println("PE: " + pe);
-                }
-
-                System.out.println("\nAro " + alianca1.getTipoAro()
-                        + ": " + alianca1.getAro());
-
-                System.out.println("\nGravação: "
-                        + alianca1.getGravacao());
-
-                System.out.println("\nAro " + alianca2.getTipoAro()
-                        + ": " + alianca2.getAro());
-
-                System.out.println("\nGravação: "
-                        + alianca2.getGravacao());
-
-                System.out.printf("\nValor do par: R$ %.2f%n", valorPar);
-
-            } else {
-
-                // Duas unidades de modelos ou teores diferentes
-
-                double valorAlianca1 = alianca1.getModelo()
-                        .calcularValorBase(
-                                alianca1.getTeorOuro(),
-                                cotacaoOuro
-                        );
-
-                double valorAlianca2 = alianca2.getModelo()
-                        .calcularValorBase(
-                                alianca2.getTeorOuro(),
-                                cotacaoOuro
-                        );
-
-                System.out.println("Uma unidade de aliança "
-                        + alianca1.getModelo().getReferencia()
-                        + " em " + alianca1.getTeorOuro() + "K");
-
-                if (pe != null && !pe.isBlank()) {
-                    System.out.println("PE: " + pe);
-                }
-
-                System.out.println("\nAro " + alianca1.getTipoAro()
-                        + ": " + alianca1.getAro());
-
-                System.out.println("\nGravação: "
-                        + alianca1.getGravacao());
-
-                System.out.printf("\nValor: R$ %.2f%n", valorAlianca1);
-
-                System.out.println("\n---------------------------");
-
-                System.out.println("Uma unidade de aliança "
-                        + alianca2.getModelo().getReferencia()
-                        + " em " + alianca2.getTeorOuro() + "K");
-
-                if (pe != null && !pe.isBlank()) {
-                    System.out.println("PE: " + pe);
-                }
-
-                System.out.println("\nAro " + alianca2.getTipoAro()
-                        + ": " + alianca2.getAro());
-
-                System.out.println("\nGravação: "
-                        + alianca2.getGravacao());
-
-                System.out.printf("\nValor: R$ %.2f%n", valorAlianca2);
-            }
+    // Imprimir na fábrica muda automaticamente PEDIDO CRIADO → OK.
+    // Reimpressões (ou pedidos cancelados) não mudam o status.
+    public void registrarImpressaoFabrica() {
+        if (status == StatusPedido.PEDIDO_CRIADO) {
+            status = StatusPedido.OK;
         }
-
-        System.out.println("\n===========================");
-        System.out.printf("Valor bruto: R$ %.2f%n", valorBruto);
-        System.out.printf("Acréscimos: R$ %.2f%n", calcularAcrescimos());
-        System.out.printf("Desconto: %.2f%%%n", desconto);
-        System.out.printf("VALOR A PAGAR: R$ %.2f%n", valorFinal);
-        System.out.println("===========================");
     }
 
+    public boolean podeSerFinalizado() {
+        return status == StatusPedido.OK;
+    }
+
+    public void finalizar(Double pesoFinalProduzido) {
+        if (!podeSerFinalizado()) {
+            throw new IllegalStateException("Só é possível finalizar um pedido com status OK "
+                    + "(impresso pela fábrica). Status atual: " + status + ".");
+        }
+        if (pesoFinalProduzido != null && pesoFinalProduzido <= 0) {
+            throw new IllegalArgumentException("O peso final produzido deve ser maior que zero.");
+        }
+        this.pesoFinalProduzido = pesoFinalProduzido;
+        status = StatusPedido.FINALIZADO;
+    }
+
+    public void marcarEntregue() {
+        if (status != StatusPedido.FINALIZADO) {
+            throw new IllegalStateException("Só é possível marcar como ENTREGUE um pedido FINALIZADO. "
+                    + "Status atual: " + status + ".");
+        }
+        status = StatusPedido.ENTREGUE;
+    }
+
+    // Cancelamento não apaga o pedido: ele continua no sistema com status CANCELADO.
+    public void cancelar() {
+        if (status == StatusPedido.CANCELADO) {
+            throw new IllegalStateException("O pedido " + id + " já está cancelado.");
+        }
+        status = StatusPedido.CANCELADO;
+    }
+
+    public boolean contabilizaNoFaturamento() {
+        return status != StatusPedido.CANCELADO;
+    }
+
+    // ==================== AUXILIARES ====================
+
+    private Cliente validarCliente(Cliente cliente) {
+        Objects.requireNonNull(cliente, "O cliente é obrigatório.");
+        if (!cliente.pertenceA(loja)) {
+            throw new IllegalArgumentException("O cliente não pertence a esta loja.");
+        }
+        return cliente;
+    }
+
+    private void verificarEditavel() {
+        if (!podeSerEditado()) {
+            throw new IllegalStateException("O pedido " + id + " está " + status
+                    + " e não pode mais ser editado.");
+        }
+    }
+
+    private void registrarEdicao() {
+        if (lancado) {
+            editado = true;
+        }
+    }
 }

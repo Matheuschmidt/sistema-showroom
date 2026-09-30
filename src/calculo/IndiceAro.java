@@ -5,6 +5,9 @@ import java.util.Map;
 
 public class IndiceAro {
 
+    private static final int ARO_MINIMO = 8;
+    private static final int ARO_MAXIMO = 40;
+
     private Map<Integer, Double> indices = new HashMap<>();
     public IndiceAro() {
 
@@ -43,7 +46,18 @@ public class IndiceAro {
         indices.put(40, 1.3330);
     }
 
-    public double buscarIndice(int aro) {
-        return indices.get(aro);
+    // Regras (REGRAS_NEGOCIO.md, seções 5.1 e 5.3):
+    // - aro decimal usa o índice do aro imediatamente superior (20.5 → 21);
+    // - aro abaixo de 8 usa o índice do 8; acima de 40 usa o índice do 40.
+    public double buscarIndice(double aro) {
+        int aroTabela = (int) Math.ceil(aro);
+
+        if (aroTabela < ARO_MINIMO) {
+            aroTabela = ARO_MINIMO;
+        } else if (aroTabela > ARO_MAXIMO) {
+            aroTabela = ARO_MAXIMO;
+        }
+
+        return indices.get(aroTabela);
     }
 }

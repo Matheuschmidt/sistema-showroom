@@ -47,13 +47,16 @@ public class Modelo {
         return valorBase18k;
     }
 
-    public double calcularValorBase(int teorOuro, CotacaoOuro cotacaoOuro){
-        if (teorOuro == 10){
-            return pesoBase10k * cotacaoOuro.getCotacao10k();
-        }
-        if (teorOuro == 18){
-            return pesoBase18k * cotacaoOuro.getCotacao18k();
-        }
-        throw new IllegalArgumentException("Teor de ouro inválido.");
+    // Peso base de UMA unidade no aro 20, conforme o teor (REGRAS_NEGOCIO.md, seção 3).
+    public double getPesoBase(TeorOuro teorOuro) {
+        return switch (teorOuro) {
+            case K10 -> pesoBase10k;
+            case K18 -> pesoBase18k;
+        };
+    }
+
+    // Valor base de uma unidade: peso comercial × cotação do seu teor.
+    public double calcularValorBase(TeorOuro teorOuro, CotacaoOuro cotacaoOuro){
+        return getPesoBase(teorOuro) * cotacaoOuro.getCotacao(teorOuro);
     }
 }

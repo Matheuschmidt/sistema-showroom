@@ -1,10 +1,13 @@
-import dominio.cliente.Cliente;
 import dominio.usuario.Admin;
+import dominio.usuario.Fabrica;
 import dominio.usuario.Loja;
+import dominio.usuario.Perfil;
 import menu.MenuAdmin;
+import menu.MenuFabrica;
 import menu.MenuLoja;
 import sistema.SistemaShowroom;
 
+import java.util.Optional;
 import java.util.Scanner;
 
 public class Main {
@@ -14,25 +17,12 @@ public class Main {
         Scanner scanner = new Scanner(System.in);
         SistemaShowroom sistema = new SistemaShowroom();
 
-        Admin admin = new Admin("admin", "admin123");
-
-        Loja caxias = new Loja(
-                "CDA CAXIAS",
-                "caxias",
-                "caxias123"
-        );
-
-        Loja novoHamburgo = new Loja(
-                "CDA NOVO HAMBURGO",
-                "novohamburgo",
-                "nh123"
-        );
-
-        Loja portoAlegre = new Loja(
-                "CDA PORTO ALEGRE",
-                "portoalegre",
-                "poa123"
-        );
+        // Dados de TESTE/DESENVOLVIMENTO. Não são credenciais reais.
+        sistema.adicionarPerfil(new Admin("admin", "admin123"));
+        sistema.adicionarPerfil(new Loja("CDA CAXIAS", "caxias", "caxias123"));
+        sistema.adicionarPerfil(new Loja("CDA NOVO HAMBURGO", "novohamburgo", "nh123"));
+        sistema.adicionarPerfil(new Loja("CDA PORTO ALEGRE", "portoalegre", "poa123"));
+        sistema.adicionarPerfil(new Fabrica("fabrica", "fabrica123"));
 
         while (true) {
 
@@ -41,6 +31,9 @@ public class Main {
             System.out.println("0 - Sair");
 
             System.out.print("Escolha uma opção: ");
+            if (!scanner.hasNextLine()) {
+                break;
+            }
             String opcao = scanner.nextLine();
 
             if (opcao.equals("0")) {
@@ -59,40 +52,22 @@ public class Main {
             System.out.print("Senha: ");
             String senha = scanner.nextLine();
 
-            if (admin.getLogin().equals(login)
-                    && admin.getSenha().equals(senha)) {
+            Optional<Perfil> perfilAutenticado = sistema.autenticar(login, senha);
 
-                System.out.println("\nLogin realizado com sucesso!");
-
-                MenuAdmin menuAdmin = new MenuAdmin(scanner);
-                menuAdmin.iniciar();
-
-            } else if (caxias.getLogin().equals(login)
-                    && caxias.getSenha().equals(senha)) {
-
-                System.out.println("\nLogin realizado com sucesso!");
-
-                MenuLoja menuLoja = new MenuLoja(scanner);
-                menuLoja.iniciar(caxias, sistema);
-
-            } else if (novoHamburgo.getLogin().equals(login)
-                    && novoHamburgo.getSenha().equals(senha)) {
-
-                System.out.println("\nLogin realizado com sucesso!");
-
-                MenuLoja menuLoja = new MenuLoja(scanner);
-                menuLoja.iniciar(novoHamburgo, sistema);
-
-            } else if (portoAlegre.getLogin().equals(login)
-                    && portoAlegre.getSenha().equals(senha)) {
-
-                System.out.println("\nLogin realizado com sucesso!");
-
-                MenuLoja menuLoja = new MenuLoja(scanner);
-                menuLoja.iniciar(portoAlegre, sistema);
-
-            } else {
+            if (perfilAutenticado.isEmpty()) {
                 System.out.println("\nLogin ou senha incorretos.");
+                continue;
+            }
+
+            System.out.println("\nLogin realizado com sucesso!");
+            Perfil perfil = perfilAutenticado.get();
+
+            if (perfil instanceof Admin) {
+                new MenuAdmin(scanner, sistema).iniciar();
+            } else if (perfil instanceof Loja loja) {
+                new MenuLoja(scanner).iniciar(loja, sistema);
+            } else if (perfil instanceof Fabrica) {
+                new MenuFabrica(scanner, sistema).iniciar();
             }
         }
 
